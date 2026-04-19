@@ -24,7 +24,8 @@ A fun interactive physics-based web app inspired by Google Antigravity.
 👉 https://Sahana-TH.github.io/zero-gravity-app/
 
 ## 📸 Preview
-(Add screenshot later)
+<img width="1470" height="825" alt="Screenshot 2026-04-19 113259" src="https://github.com/user-attachments/assets/37644de7-41d1-4cde-b5d1-06a52d2e1cbf" />
+
 
 ## 💡 Future Improvements
 - More physics realism
