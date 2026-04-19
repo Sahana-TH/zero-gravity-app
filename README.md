@@ -21,7 +21,7 @@ A fun interactive physics-based web app inspired by Google Antigravity.
 - Web Audio API
 
 ## 🌐 Live Demo
-👉 https://yourusername.github.io/zero-gravity-app/
+👉 https://Sahana-TH.github.io/zero-gravity-app/
 
 ## 📸 Preview
 (Add screenshot later)
