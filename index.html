@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zero Gravity – Physics Sandbox</title>
+  <style>
+    /* ── Reset & base ── */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #05050f;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, sans-serif;
+      color: #eee;
+    }
+
+    h1 {
+      font-size: 13px;
+      font-weight: 400;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.25);
+      margin-bottom: 10px;
+    }
+
+    /* ── Main arena ── */
+    #zgc {
+      position: relative;
+      width: min(98vw, 900px);
+      height: min(80vh, 620px);
+      overflow: hidden;
+      border-radius: 14px;
+      border: 0.5px solid rgba(255,255,255,0.1);
+      cursor: crosshair;
+      user-select: none;
+      touch-action: none;
+      background: #080818; /* overwritten by theme */
+    }
+
+    /* ── Floating objects ── */
+    .fo {
+      position: absolute;
+      padding: 8px 16px;
+      border-radius: 50px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: grab;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      white-space: nowrap;
+      will-change: transform, left, top;
+      z-index: 10;
+    }
+    .fo:active { cursor: grabbing; }
+    .fo.grabbed { z-index: 100; }
+
+    /* ── Particle canvas ── */
+    #trails {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    /* ── Star background ── */
+    #starbg {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Wormhole portals ── */
+    .wh {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      animation: wh-pulse 1.5s ease-in-out infinite;
+      z-index: 8;
+    }
+    @keyframes wh-pulse {
+      0%, 100% { transform: translate(-50%,-50%) scale(1);   opacity: 0.9; }
+      50%       { transform: translate(-50%,-50%) scale(1.2); opacity: 0.55; }
+    }
+
+    /* ── Ripple on click ── */
+    .ripple {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 6;
+      animation: rout 0.5s ease-out forwards;
+    }
+    @keyframes rout {
+      from { transform: translate(-50%,-50%) scale(0); opacity: 0.8; }
+      to   { transform: translate(-50%,-50%) scale(4); opacity: 0;   }
+    }
+
+    /* ── Custom text spawner bar ── */
+    #spawner {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 6px;
+      z-index: 200;
+    }
+    #spawner input {
+      background: rgba(255,255,255,0.07);
+      border: 0.5px solid rgba(255,255,255,0.22);
+      color: #eee;
+      padding: 6px 14px;
+      border-radius: 50px;
+      font-size: 12px;
+      outline: none;
+      width: 160px;
+      transition: border-color 0.2s;
+    }
+    #spawner input:focus { border-color: rgba(255,255,255,0.45); }
+    #spawner input::placeholder { color: rgba(255,255,255,0.28); }
+    #spawner button {
+      background: rgba(255,255,255,0.09);
+      border: 0.5px solid rgba(255,255,255,0.25);
+      color: #ddd;
+      padding: 6px 14px;
+      border-radius: 50px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #spawner button:hover { background: rgba(255,255,255,0.18); }
+
+    /* ── Hints ── */
+    #tip {
+      position: absolute;
+      top: 48px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255,255,255,0.22);
+      font-size: 11px;
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 50;
+      letter-spacing: 0.5px;
+    }
+    #wh-tip {
+      position: absolute;
+      top: 66px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255,220,100,0.65);
+      font-size: 11px;
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 50;
+      display: none;
+    }
+
+    /* ── Stats ── */
+    #stat {
+      position: absolute;
+      top: 12px;
+      right: 14px;
+      color: rgba(255,255,255,0.22);
+      font-size: 11px;
+      pointer-events: none;
+      z-index: 50;
+      letter-spacing: 0.3px;
+    }
+
+    /* ── HUD buttons ── */
+    #hud {
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 6px;
+      z-index: 200;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    #hud button {
+      background: rgba(255,255,255,0.06);
+      border: 0.5px solid rgba(255,255,255,0.18);
+      color: #bbb;
+      padding: 6px 13px;
+      border-radius: 50px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s;
+      letter-spacing: 0.3px;
+    }
+    #hud button:hover  { background: rgba(255,255,255,0.14); color: #fff; }
+    #hud button.active { border-color: rgba(255,255,255,0.5); color: #fff; background: rgba(255,255,255,0.12); }
+
+    /* ── Footer ── */
+    footer {
+      margin-top: 10px;
+      font-size: 11px;
+      color: rgba(255,255,255,0.15);
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Zero Gravity &nbsp;·&nbsp; Physics Sandbox</h1>
+
+  <div id="zgc">
+    <!-- Star background injected by JS -->
+    <!-- Particle trail canvas -->
+    <canvas id="trails"></canvas>
+
+    <!-- Custom text spawner -->
+    <div id="spawner">
+      <input id="custinput" placeholder="type anything…" maxlength="22" />
+      <button id="btn-spawn-custom">launch ↑</button>
+    </div>
+
+    <!-- Hints -->
+    <div id="tip">drag · throw · click to spawn · move mouse to interact</div>
+    <div id="wh-tip"></div>
+
+    <!-- Stats -->
+    <div id="stat"></div>
+
+    <!-- Control buttons -->
+    <div id="hud">
+      <button id="btn-add">+ object</button>
+      <button id="btn-clear">clear all</button>
+      <button id="btn-gravity">gravity off</button>
+      <button id="btn-magnet">magnet off</button>
+      <button id="btn-wormhole">wormhole</button>
+      <button id="btn-theme">theme ◐</button>
+      <button id="btn-mute">sound on</button>
+    </div>
+  </div>
+
+  <footer>vanilla js · web audio · canvas api · device orientation</footer>
+
+<script>
+/* ================================================================
+   ZERO GRAVITY – Complete Physics Sandbox
+   ================================================================
+   Features:
+     • Floating objects with velocity, friction, rotation
+     • Wall bouncing with energy loss
+     • Object-to-object elastic collision
+     • Mouse repulsion / magnet attraction
+     • Drag & throw with inertia
+     • Particle trail system (canvas)
+     • Web Audio sound effects (wall, collision, wormhole)
+     • Wormhole portals (teleportation)
+     • Device tilt gravity (mobile)
+     • Custom text spawner
+     • 4 color themes
+   ================================================================ */
+
+(function () {
+  'use strict';
+
+  /* ── DOM refs ── */
+  const arena   = document.getElementById('zgc');
+  const trailC  = document.getElementById('trails');
+  const tx      = trailC.getContext('2d');
+  const statEl  = document.getElementById('stat');
+  const whTip   = document.getElementById('wh-tip');
+  const custIn  = document.getElementById('custinput');
+
+  /* ── Themes ──────────────────────────────────────────────────── */
+  const THEMES = [
+    { name: 'space',   bg: '#080818', star: 'rgba(255,255,255,0.65)' },
+    { name: 'sunrise', bg: '#110804', star: 'rgba(255,180,80,0.75)'  },
+    { name: 'ocean',   bg: '#01111e', star: 'rgba(80,210,255,0.65)'  },
+    { name: 'neon',    bg: '#06000f', star: 'rgba(210,80,255,0.70)'  },
+  ];
+  let themeIdx = 0;
+
+  /* ── Color palettes per theme ─────────────────────────────────── */
+  const PALETTES = [
+    [ // space
+      { c:'#ff6b6b', bg:'rgba(255,107,107,0.11)', b:'rgba(255,107,107,0.35)' },
+      { c:'#a78bfa', bg:'rgba(167,139,250,0.11)', b:'rgba(167,139,250,0.35)' },
+      { c:'#fbbf24', bg:'rgba(251,191,36,0.11)',  b:'rgba(251,191,36,0.35)'  },
+      { c:'#34d399', bg:'rgba(52,211,153,0.11)',  b:'rgba(52,211,153,0.35)'  },
+      { c:'#60a5fa', bg:'rgba(96,165,250,0.11)',  b:'rgba(96,165,250,0.35)'  },
+      { c:'#f472b6', bg:'rgba(244,114,182,0.11)', b:'rgba(244,114,182,0.35)' },
+      { c:'#2dd4bf', bg:'rgba(45,212,191,0.11)',  b:'rgba(45,212,191,0.35)'  },
+    ],
+    [ // sunrise
+      { c:'#ffaa44', bg:'rgba(255,170,68,0.11)',  b:'rgba(255,170,68,0.35)'  },
+      { c:'#ff6644', bg:'rgba(255,102,68,0.11)',  b:'rgba(255,102,68,0.35)'  },
+      { c:'#ffcc77', bg:'rgba(255,204,119,0.11)', b:'rgba(255,204,119,0.35)' },
+      { c:'#ff8855', bg:'rgba(255,136,85,0.11)',  b:'rgba(255,136,85,0.35)'  },
+      { c:'#ffddaa', bg:'rgba(255,221,170,0.11)', b:'rgba(255,221,170,0.35)' },
+      { c:'#ee9944', bg:'rgba(238,153,68,0.11)',  b:'rgba(238,153,68,0.35)'  },
+    ],
+    [ // ocean
+      { c:'#00d4ff', bg:'rgba(0,212,255,0.10)',   b:'rgba(0,212,255,0.32)'   },
+      { c:'#0099cc', bg:'rgba(0,153,204,0.10)',   b:'rgba(0,153,204,0.32)'   },
+      { c:'#44eebb', bg:'rgba(68,238,187,0.10)',  b:'rgba(68,238,187,0.32)'  },
+      { c:'#66bbff', bg:'rgba(102,187,255,0.10)', b:'rgba(102,187,255,0.32)' },
+      { c:'#aaddff', bg:'rgba(170,221,255,0.10)', b:'rgba(170,221,255,0.32)' },
+    ],
+    [ // neon
+      { c:'#cc44ff', bg:'rgba(204,68,255,0.10)',  b:'rgba(204,68,255,0.32)'  },
+      { c:'#ff44cc', bg:'rgba(255,68,204,0.10)',  b:'rgba(255,68,204,0.32)'  },
+      { c:'#44ffcc', bg:'rgba(68,255,204,0.10)',  b:'rgba(68,255,204,0.32)'  },
+      { c:'#ffcc00', bg:'rgba(255,204,0,0.10)',   b:'rgba(255,204,0,0.32)'   },
+      { c:'#ff6644', bg:'rgba(255,102,68,0.10)',  b:'rgba(255,102,68,0.32)'  },
+    ],
+  ];
+
+  /* ── Emoji + label pairs ── */
+  const ITEMS = [
+    { e:'🚀', l:'launch'   }, { e:'🌙', l:'orbit'    },
+    { e:'⭐', l:'star'     }, { e:'🪐', l:'planet'   },
+    { e:'💫', l:'float'    }, { e:'🛸', l:'explore'  },
+    { e:'🌌', l:'galaxy'   }, { e:'☄️',  l:'comet'   },
+    { e:'🔭', l:'discover' }, { e:'🌟', l:'shine'    },
+    { e:'🧲', l:'pull'     }, { e:'🕳️', l:'void'    },
+    { e:'🌈', l:'color'    }, { e:'⚡', l:'energy'   },
+  ];
+
+  /* ── State ── */
+  let objects   = [];   // FloatObj instances
+  let particles = [];   // Particle instances
+  let wormholes = [];   // {x,y,r,el,color}
+  let whClickCount = 0;
+
+  let mouse = { x: -9999, y: -9999 };
+
+  let gravityOn    = false;
+  let magnetMode   = false;
+  let wormholeMode = false;
+  let muted        = false;
+
+  let audioCtx = null;
+
+  /* ── Helpers ── */
+  const W = () => arena.clientWidth;
+  const H = () => arena.clientHeight;
+  const rnd = (a, b) => Math.random() * (b - a) + a;
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+  function palette() { return PALETTES[themeIdx % PALETTES.length]; }
+  function theme()   { return THEMES[themeIdx % THEMES.length]; }
+  function randCol() {
+    const p = palette();
+    return p[Math.floor(Math.random() * p.length)];
+  }
+  function randItem() { return ITEMS[Math.floor(Math.random() * ITEMS.length)]; }
+
+  /* ── Web Audio ─────────────────────────────────────────────────
+     All sounds are synthesised; no audio files needed.           */
+  function ensureAudio() {
+    if (!audioCtx) {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch (e) { audioCtx = null; }
+    }
+  }
+
+  function beep(freq, type = 'sine', vol = 0.06, dur = 0.1) {
+    if (muted || !audioCtx) return;
+    try {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+      osc.start();
+      osc.stop(audioCtx.currentTime + dur);
+    } catch (e) {}
+  }
+
+  /* ── Stars background ──────────────────────────────────────────
+     Generated as SVG circles so they scale perfectly.           */
+  function buildStars() {
+    let el = document.getElementById('starbg');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'starbg';
+      el.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:0';
+      arena.insertBefore(el, arena.firstChild);
+    }
+    const t = theme();
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', '100%');
+    svg.style.cssText = 'position:absolute;inset:0';
+
+    for (let i = 0; i < 70; i++) {
+      const c = document.createElementNS(ns, 'circle');
+      c.setAttribute('cx', rnd(1, 99) + '%');
+      c.setAttribute('cy', rnd(1, 99) + '%');
+      c.setAttribute('r',  rnd(0.3, 1.4));
+      c.setAttribute('fill', t.star);
+      c.setAttribute('opacity', rnd(0.2, 1));
+      // Twinkle animation on larger stars
+      if (Math.random() < 0.3) {
+        const anim = document.createElementNS(ns, 'animate');
+        anim.setAttribute('attributeName', 'opacity');
+        anim.setAttribute('values', '0.2;1;0.2');
+        anim.setAttribute('dur', rnd(1.5, 4) + 's');
+        anim.setAttribute('repeatCount', 'indefinite');
+        c.appendChild(anim);
+      }
+      svg.appendChild(c);
+    }
+    el.innerHTML = '';
+    el.appendChild(svg);
+  }
+
+  function applyTheme() {
+    arena.style.background = theme().bg;
+    buildStars();
+  }
+
+  /* ── Particle ──────────────────────────────────────────────────
+     Tiny dots that fade out, drawn on the trail canvas.         */
+  class Particle {
+    constructor(x, y, hexColor) {
+      this.x = x;
+      this.y = y;
+      this.vx = rnd(-2, 2);
+      this.vy = rnd(-2, 2);
+      this.r  = rnd(1, 3.5);
+      this.life  = 1;
+      this.decay = rnd(0.025, 0.055);
+      this.color = hexColor; // CSS color string
+    }
+
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      this.vx *= 0.94;
+      this.vy *= 0.94;
+      this.r  *= 0.97;
+      this.life -= this.decay;
+    }
+
+    draw(ctx) {
+      ctx.globalAlpha = Math.max(0, this.life);
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, Math.max(0.1, this.r), 0, Math.PI * 2);
+      ctx.fillStyle = this.color;
+      ctx.fill();
+    }
+  }
+
+  function spawnParticles(x, y, color, count = 6) {
+    for (let i = 0; i < count; i++) {
+      particles.push(new Particle(x, y, color));
+    }
+  }
+
+  /* ── FloatObj ──────────────────────────────────────────────────
+     Each floating pill. Stores position, velocity, rotation.   */
+  class FloatObj {
+    constructor(x, y, item, customLabel) {
+      this.item   = item || randItem();
+      this.col    = randCol();
+      this.label  = customLabel || this.item.l;
+
+      // Physics state
+      this.x  = x;
+      this.y  = y;
+      this.vx = rnd(-3, 3);
+      this.vy = rnd(-3, 3);
+      this.rot    = rnd(0, 360);
+      this.rotSpd = rnd(-1.2, 1.2);
+
+      // Dimensions filled after DOM insertion
+      this.w = 120;
+      this.h = 36;
+
+      // Drag state
+      this.dragging = false;
+      this.dragOX   = 0;
+      this.dragOY   = 0;
+      this.pvx      = 0;
+      this.pvy      = 0;
+
+      // Build DOM element
+      this.el = document.createElement('div');
+      this.el.className = 'fo';
+      this.el.innerHTML =
+        `<span style="font-size:15px">${this.item.e}</span>` +
+        `<span>${this.label}</span>`;
+      this.el.style.cssText =
+        `color:${this.col.c};` +
+        `background:${this.col.bg};` +
+        `border:0.5px solid ${this.col.b};` +
+        `left:${x}px;top:${y}px`;
+
+      arena.appendChild(this.el);
+
+      // Measure real size after paint
+      requestAnimationFrame(() => {
+        this.w = this.el.offsetWidth  || 120;
+        this.h = this.el.offsetHeight || 36;
+        this.x = clamp(x, 0, W() - this.w);
+        this.y = clamp(y, 0, H() - this.h);
+      });
+
+      this.el.addEventListener('pointerdown', e => this.startDrag(e));
+    }
+
+    /* Centre coordinates */
+    cx() { return this.x + this.w / 2; }
+    cy() { return this.y + this.h / 2; }
+    radius() { return Math.max(this.w, this.h) / 2; }
+
+    /* ── Drag & throw ── */
+    startDrag(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      ensureAudio();
+      this.dragging = true;
+      this.pvx = 0; this.pvy = 0;
+      this.el.classList.add('grabbed');
+      this.el.setPointerCapture(e.pointerId);
+
+      const rect = arena.getBoundingClientRect();
+      this.dragOX = e.clientX - rect.left - this.x;
+      this.dragOY = e.clientY - rect.top  - this.y;
+
+      const onMove = ev => {
+        if (!this.dragging) return;
+        const r  = arena.getBoundingClientRect();
+        const nx = ev.clientX - r.left - this.dragOX;
+        const ny = ev.clientY - r.top  - this.dragOY;
+        // Track velocity from drag speed
+        this.pvx = (nx - this.x) * 0.55;
+        this.pvy = (ny - this.y) * 0.55;
+        this.x = nx;
+        this.y = ny;
+      };
+      const onUp = () => {
+        this.dragging = false;
+        // Apply throw velocity
+        this.vx = this.pvx || this.vx;
+        this.vy = this.pvy || this.vy;
+        this.el.classList.remove('grabbed');
+        this.el.releasePointerCapture(e.pointerId);
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup',   onUp);
+      };
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup',   onUp);
+    }
+
+    /* ── Particle trail ── */
+    emitTrail() {
+      const spd = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      if (spd > 2.5 && Math.random() < 0.55) {
+        spawnParticles(this.cx(), this.cy(), this.col.c, Math.ceil(spd * 0.35));
+      }
+    }
+
+    /* ── Main update (called every frame) ── */
+    update() {
+      if (this.dragging) {
+        this.el.style.left = this.x + 'px';
+        this.el.style.top  = this.y + 'px';
+        return;
+      }
+
+      const AW = W(), AH = H();
+
+      /* Gravity */
+      if (gravityOn) this.vy += 0.14;
+
+      /* Mouse force (repulsion or attraction) */
+      const dx   = this.cx() - mouse.x;
+      const dy   = this.cy() - mouse.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
+      if (dist < 135) {
+        const force = ((135 - dist) / 135) * 2.9;
+        const sign  = magnetMode ? -1 : 1;
+        this.vx += sign * (dx / dist) * force;
+        this.vy += sign * (dy / dist) * force;
+      }
+
+      /* Friction */
+      this.vx *= 0.983;
+      this.vy *= 0.983;
+
+      /* Speed cap */
+      const spd = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+      if (spd > 16) {
+        this.vx = (this.vx / spd) * 16;
+        this.vy = (this.vy / spd) * 16;
+      }
+
+      /* Move */
+      this.x += this.vx;
+      this.y += this.vy;
+
+      /* Wall bouncing */
+      if (this.x < 0) {
+        this.x = 0; this.vx *= -0.72;
+        beep(rnd(190, 260), 'sine', 0.05, 0.08);
+        spawnParticles(this.cx(), this.cy(), this.col.c, 5);
+      }
+      if (this.y < 0) {
+        this.y = 0; this.vy *= -0.72;
+        beep(rnd(200, 270), 'sine', 0.05, 0.08);
+        spawnParticles(this.cx(), this.cy(), this.col.c, 5);
+      }
+      if (this.x + this.w > AW) {
+        this.x = AW - this.w; this.vx *= -0.72;
+        beep(rnd(190, 260), 'sine', 0.05, 0.08);
+        spawnParticles(this.cx(), this.cy(), this.col.c, 5);
+      }
+      if (this.y + this.h > AH) {
+        this.y = AH - this.h; this.vy *= -0.72;
+        if (gravityOn) this.vy *= 0.55; // extra floor damping under gravity
+        beep(rnd(190, 260), 'sine', 0.05, 0.08);
+        spawnParticles(this.cx(), this.cy(), this.col.c, 5);
+      }
+
+      /* Rotation – faster when moving fast */
+      this.rot += this.rotSpd * (Math.abs(this.vx) + Math.abs(this.vy)) * 0.075;
+
+      /* Trails */
+      this.emitTrail();
+
+      /* Apply to DOM */
+      this.el.style.left      = this.x + 'px';
+      this.el.style.top       = this.y + 'px';
+      this.el.style.transform = `rotate(${this.rot}deg)`;
+    }
+
+    /* Recolour (used on theme change) */
+    recolour() {
+      this.col = randCol();
+      this.el.style.color      = this.col.c;
+      this.el.style.background = this.col.bg;
+      this.el.style.borderColor = this.col.b;
+    }
+
+    remove() { this.el.remove(); }
+  }
+
+  /* ── Object-to-object collision ────────────────────────────────
+     Simple elastic impulse: swap velocity components along the
+     collision normal. Overlap is resolved by pushing apart.     */
+  function resolveCollisions() {
+    for (let i = 0; i < objects.length; i++) {
+      for (let j = i + 1; j < objects.length; j++) {
+        const a = objects[i], b = objects[j];
+        if (a.dragging || b.dragging) continue;
+
+        const dx   = b.cx() - a.cx();
+        const dy   = b.cy() - a.cy();
+        const dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
+        const minD = (a.radius() + b.radius()) * 0.72;
+
+        if (dist < minD) {
+          const nx  = dx / dist, ny = dy / dist;
+          // Relative velocity along collision normal
+          const dvx = a.vx - b.vx, dvy = a.vy - b.vy;
+          const dot = dvx * nx + dvy * ny;
+
+          if (dot > 0) { // approaching
+            const imp = dot * 0.88; // restitution
+            a.vx -= imp * nx; a.vy -= imp * ny;
+            b.vx += imp * nx; b.vy += imp * ny;
+
+            // Positional correction (push apart)
+            const overlap = (minD - dist) * 0.5;
+            a.x -= nx * overlap; a.y -= ny * overlap;
+            b.x += nx * overlap; b.y += ny * overlap;
+
+            // Sound + particles at midpoint
+            beep(rnd(260, 380), 'triangle', 0.04, 0.12);
+            const mx = (a.cx() + b.cx()) / 2;
+            const my = (a.cy() + b.cy()) / 2;
+            spawnParticles(mx, my, a.col.c, 7);
+            spawnParticles(mx, my, b.col.c, 4);
+          }
+        }
+      }
+    }
+  }
+
+  /* ── Wormhole teleportation ─────────────────────────────────── */
+  function checkWormholes() {
+    if (wormholes.length < 2) return;
+    const wa = wormholes[0], wb = wormholes[1];
+
+    for (const o of objects) {
+      if (o.dragging) continue;
+
+      // Object enters portal A → exits B
+      const dxa = o.cx() - wa.x, dya = o.cy() - wa.y;
+      if (Math.sqrt(dxa * dxa + dya * dya) < wa.r) {
+        o.x = wb.x - o.w / 2;
+        o.y = wb.y - o.h / 2;
+        o.vx *= 0.9; o.vy *= 0.9;
+        beep(80, 'sawtooth', 0.09, 0.35);
+        spawnParticles(wb.x, wb.y, '#ffe080', 14);
+      }
+
+      // Object enters portal B → exits A
+      const dxb = o.cx() - wb.x, dyb = o.cy() - wb.y;
+      if (Math.sqrt(dxb * dxb + dyb * dyb) < wb.r) {
+        o.x = wa.x - o.w / 2;
+        o.y = wa.y - o.h / 2;
+        o.vx *= 0.9; o.vy *= 0.9;
+        beep(80, 'sawtooth', 0.09, 0.35);
+        spawnParticles(wa.x, wa.y, '#80c0ff', 14);
+      }
+    }
+  }
+
+  /* ── Trail canvas render ─────────────────────────────────────── */
+  function drawTrails() {
+    // Resize canvas to match arena
+    if (trailC.width !== W() || trailC.height !== H()) {
+      trailC.width  = W();
+      trailC.height = H();
+    }
+    tx.clearRect(0, 0, trailC.width, trailC.height);
+
+    // Draw particles
+    for (const p of particles) p.draw(tx);
+    tx.globalAlpha = 1;
+
+    // Draw wormhole link line
+    if (wormholes.length === 2) {
+      const wa = wormholes[0], wb = wormholes[1];
+      tx.beginPath();
+      tx.moveTo(wa.x, wa.y);
+      tx.lineTo(wb.x, wb.y);
+      tx.strokeStyle = 'rgba(255,220,100,0.18)';
+      tx.lineWidth   = 1;
+      tx.setLineDash([5, 10]);
+      tx.stroke();
+      tx.setLineDash([]);
+    }
+  }
+
+  /* ── Main animation loop ──────────────────────────────────────
+     Runs at ~60 fps via requestAnimationFrame.                  */
+  function loop() {
+    objects.forEach(o => o.update());
+    resolveCollisions();
+    checkWormholes();
+
+    // Age out dead particles
+    particles = particles.filter(p => { p.update(); return p.life > 0; });
+
+    drawTrails();
+
+    statEl.textContent = `${objects.length} objects · ${particles.length} particles`;
+
+    requestAnimationFrame(loop);
+  }
+
+  /* ── Spawn helpers ─────────────────────────────────────────────  */
+  function ripple(x, y) {
+    const r = document.createElement('div');
+    r.className = 'ripple';
+    r.style.cssText =
+      `left:${x}px;top:${y}px;` +
+      `width:40px;height:40px;` +
+      `background:rgba(255,255,255,0.12);`;
+    arena.appendChild(r);
+    setTimeout(() => r.remove(), 520);
+  }
+
+  function spawnObject(x, y, customLabel) {
+    x = clamp(x, 10, W() - 150);
+    y = clamp(y, 10, H() - 60);
+    const o = new FloatObj(x, y, randItem(), customLabel || null);
+    objects.push(o);
+    ripple(x + 60, y + 18);
+  }
+
+  function spawnInitial() {
+    const count = 10;
+    for (let i = 0; i < count; i++) {
+      setTimeout(() => {
+        spawnObject(rnd(40, W() - 180), rnd(40, H() - 80));
+      }, i * 80);
+    }
+  }
+
+  /* ── Canvas click – spawn or wormhole ─────────────────────────── */
+  arena.addEventListener('pointerdown', e => {
+    // Ignore clicks on buttons / inputs / objects
+    if (['INPUT','BUTTON'].includes(e.target.tagName)) return;
+    if (e.target.closest('.fo')) return;
+
+    ensureAudio();
+    const rect = arena.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (wormholeMode) {
+      /* Place a wormhole portal */
+      const colors  = ['rgba(255,220,80,0.85)', 'rgba(100,180,255,0.85)'];
+      const wr      = 30;
+      const col     = colors[whClickCount % 2];
+
+      const wh = document.createElement('div');
+      wh.className = 'wh';
+      wh.style.cssText =
+        `left:${x}px;top:${y}px;` +
+        `width:${wr * 2}px;height:${wr * 2}px;` +
+        `background:${col};` +
+        `border:2px solid rgba(255,255,255,0.4)`;
+      arena.appendChild(wh);
+      wormholes.push({ x, y, r: wr, el: wh, color: col });
+
+      beep(300 + whClickCount * 200, 'sine', 0.08, 0.22);
+      whClickCount++;
+
+      if (whClickCount >= 2) {
+        whTip.textContent = '✦ wormhole active — objects teleport between portals';
+        whTip.style.display = 'block';
+        whClickCount = 0;
+      } else {
+        whTip.textContent = 'now click the exit portal location…';
+      }
+      return;
+    }
+
+    /* Normal click → spawn object */
+    spawnObject(x - 60, y - 18);
+    beep(rnd(300, 460), 'sine', 0.05, 0.14);
+  });
+
+  /* ── Mouse tracking ─────────────────────────────────────────── */
+  arena.addEventListener('pointermove', e => {
+    const r = arena.getBoundingClientRect();
+    mouse.x = e.clientX - r.left;
+    mouse.y = e.clientY - r.top;
+  });
+  arena.addEventListener('pointerleave', () => {
+    mouse.x = -9999; mouse.y = -9999;
+  });
+
+  /* ── Device tilt gravity (mobile gyroscope) ─────────────────── */
+  if (window.DeviceOrientationEvent) {
+    window.addEventListener('deviceorientation', e => {
+      if (!gravityOn) return;
+      const gx = (e.gamma || 0) / 30; // left/right tilt
+      const gy = (e.beta  || 0) / 30; // forward/back tilt
+      objects.forEach(o => {
+        if (!o.dragging) {
+          o.vx += gx * 0.55;
+          o.vy += gy * 0.55;
+        }
+      });
+    });
+  }
+
+  /* ── HUD button wiring ──────────────────────────────────────── */
+
+  document.getElementById('btn-add').addEventListener('click', () => {
+    ensureAudio();
+    spawnObject(rnd(40, W() - 180), rnd(40, H() - 80));
+  });
+
+  document.getElementById('btn-clear').addEventListener('click', () => {
+    objects.forEach(o => o.remove());
+    objects = [];
+    wormholes.forEach(w => w.el.remove());
+    wormholes = [];
+    whClickCount = 0;
+    whTip.style.display = 'none';
+    particles = [];
+  });
+
+  document.getElementById('btn-gravity').addEventListener('click', e => {
+    gravityOn = !gravityOn;
+    e.target.textContent = gravityOn ? 'gravity on' : 'gravity off';
+    e.target.classList.toggle('active', gravityOn);
+    beep(gravityOn ? 140 : 340, 'sine', 0.07, 0.22);
+  });
+
+  document.getElementById('btn-magnet').addEventListener('click', e => {
+    magnetMode = !magnetMode;
+    e.target.textContent = magnetMode ? 'magnet on' : 'magnet off';
+    e.target.classList.toggle('active', magnetMode);
+    beep(magnetMode ? 520 : 240, 'sine', 0.06, 0.16);
+  });
+
+  document.getElementById('btn-wormhole').addEventListener('click', e => {
+    wormholeMode = !wormholeMode;
+    e.target.classList.toggle('active', wormholeMode);
+
+    if (wormholeMode) {
+      // Reset any existing portals
+      wormholes.forEach(w => w.el.remove());
+      wormholes    = [];
+      whClickCount = 0;
+      whTip.textContent   = 'click entry portal location…';
+      whTip.style.display = 'block';
+    } else {
+      whTip.style.display = 'none';
+    }
+  });
+
+  document.getElementById('btn-theme').addEventListener('click', () => {
+    themeIdx = (themeIdx + 1) % THEMES.length;
+    applyTheme();
+    // Recolour all existing objects to match new theme
+    objects.forEach(o => o.recolour());
+    beep(400, 'sine', 0.05, 0.1);
+  });
+
+  document.getElementById('btn-mute').addEventListener('click', e => {
+    ensureAudio();
+    muted = !muted;
+    e.target.textContent = muted ? 'sound off' : 'sound on';
+    e.target.classList.toggle('active', muted);
+  });
+
+  /* Custom text spawn */
+  document.getElementById('btn-spawn-custom').addEventListener('click', () => {
+    ensureAudio();
+    const val = custIn.value.trim();
+    if (!val) return;
+    spawnObject(rnd(60, W() - 200), rnd(60, H() - 80), val);
+    custIn.value = '';
+    beep(440, 'sine', 0.07, 0.2);
+  });
+  custIn.addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('btn-spawn-custom').click();
+  });
+
+  /* ── Kick everything off ─────────────────────────────────────── */
+  applyTheme();
+  setTimeout(spawnInitial, 150);
+  loop();
+
+})();
+</script>
+</body>
+</html>
